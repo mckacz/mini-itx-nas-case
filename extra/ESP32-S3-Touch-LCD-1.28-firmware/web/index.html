@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Button</title>
+
+  <style>
+      * {
+          margin: 0;
+          padding: 0;
+          font-family: sans-serif;
+          box-sizing: border-box;
+      }
+
+      html, body {
+          height: 100%;
+      }
+
+      html, body, main {
+          min-height: 100%;
+          background-color: #333;
+      }
+
+      main {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 10vmin;
+      }
+
+      #switch {
+          width: 50vmin;
+          height: 50vmin;
+
+          background-color: #eee;
+          border: 2vmin solid #ccc;
+
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          cursor: pointer;
+      }
+
+      #options {
+          width: 50vmin;
+          padding: 2vmin 0;
+
+          background-color: #333;
+          border: 2vmin solid #666;
+
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          cursor: pointer;
+
+          color: #fff;
+          font-weight: bold;
+          font-size: 5vmin;
+      }
+
+      #switch span {
+          display: none;
+          color: #fff;
+          font-weight: bold;
+          font-size: 15vmin;
+      }
+
+      #switch.on {
+          background-color: #00b800;
+          border: 2vmin solid #006f00;
+      }
+
+      #switch.off {
+          background-color: #b80000;
+          border: 2vmin solid #6f0000;
+      }
+
+      #switch.changing.on, #switch.changing.off {
+          background-color: #b88100;
+          border: 2vmin solid #b85000;
+      }
+
+      #switch.on .on {
+          display: block;
+      }
+
+      #switch.off .off {
+          display: block;
+      }
+
+      #schedule {
+          color: #fff;
+          font-size: 10vmin;
+
+          display: none;
+          flex-direction: column;
+          gap: 5vmin;
+      }
+
+      #schedule label {
+          display: flex;
+          gap: 2vmin;
+          align-items: center;
+      }
+
+      #schedule input[type=time] {
+          font-size: 10vmin;
+      }
+
+      #schedule button {
+          font-size: 10vmin;
+          background: #66f;
+          color: #fff;
+      }
+
+      #schedule input[type=checkbox] {
+          width: 10vmin;
+          height: 10vmin;
+      }
+  </style>
+</head>
+<body>
+
+<main>
+  <div id="switch">
+    <span class="on">ON</span>
+    <span class="off">OFF</span>
+  </div>
+
+  <div id="options">OPTIONS</div>
+
+  <form id="schedule" method="post">
+    <label>
+      <input type="checkbox" id="scheduleEnabled"/>
+      Auto on/off
+    </label>
+
+    <label>
+      <input type="checkbox" id="schedulePowerLoss"/>
+      Power loss on
+    </label>
+
+    <input type="time" id="onTime"/>
+    <input type="time" id="offTime"/>
+
+    <button type="submit">Save</button>
+  </form>
+</main>
+
+<script>
+    const options = document.getElementById('options');
+    const button = document.getElementById('switch');
+    const scheduleForm = document.getElementById('schedule');
+    const scheduleEnabled = document.getElementById('scheduleEnabled');
+    const schedulePowerLossOn = document.getElementById('schedulePowerLoss');
+    const scheduleOnTime = document.getElementById('onTime');
+    const scheduleOffTime = document.getElementById('offTime');
+
+    async function switchState() {
+        await fetch(`/api/power`, {method: 'POST', keepalive: false});
+    }
+
+    async function fetchState() {
+        try {
+            const res = await fetch(`/api/power`, {keepalive: false});
+
+            if (res.ok) {
+                const data = await res.json();
+
+                if (data.state) {
+                    button.className = 'on';
+                } else {
+                    button.className = 'off';
+                }
+
+                if (data.changing) {
+                    button.className += ' changing';
+                }
+            }
+        } finally {
+            setTimeout(fetchState, 2000);
+        }
+    }
+
+    async function fetchSchedule() {
+        const res = await fetch(`/api/schedule`);
+
+        if (res.ok) {
+            const data = await res.json();
+            const onTime = data.onTime.toString().padStart(4, '0');
+            const offTime = data.offTime.toString().padStart(4, '0');
+
+            scheduleEnabled.checked = !!data.enabled;
+            schedulePowerLossOn.checked = !!data.powerLossOn;
+            scheduleOnTime.value = onTime.substring(0, 2) + ':' + onTime.substring(2);
+            scheduleOffTime.value = offTime.substring(0, 2) + ':' + offTime.substring(2);
+        }
+    }
+
+    async function saveSchedule() {
+        const onTime = scheduleOnTime.value.replace(':', '')
+        const offTime = scheduleOffTime.value.replace(':', '')
+
+        await fetch(
+            `/api/schedule/${scheduleEnabled.checked ? 1 : 0}`
+            + `/${schedulePowerLossOn.checked ? 1 : 0}/${onTime}/${offTime}`,
+            {method: 'POST'});
+    }
+
+    button.addEventListener('click', () => switchState())
+
+    scheduleForm.addEventListener('submit', e => {
+        e.preventDefault();
+        void saveSchedule();
+
+        options.style.display = 'block';
+        scheduleForm.style.display = 'none';
+    })
+
+    options.addEventListener('click', () => {
+        options.style.display = 'none';
+        scheduleForm.style.display = 'flex';
+    });
+
+    void fetchSchedule();
+    void fetchState();
+</script>
+
+</body>
+</html>
